@@ -31,20 +31,17 @@
 <body>
   <div id="map"></div>
   <script>
-    // Inicializar mapa en Paysandú
     var map = L.map('map', {
       zoomControl: true,
       attributionControl: false
     }).setView([-32.0653, -57.3272], 17);
 
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
       maxZoom: 19
     }).addTo(map);
 
-    // Marcador del usuario
     var marcador = L.marker([-32.0653, -57.3272]).addTo(map);
 
-    // Línea del recorrido
     var puntos = [];
     var linea = L.polyline([], {
       color: '#1D9E75',
@@ -59,12 +56,11 @@
     var totalAhorro = 0;
     var tipoTransporte = '';
     var watchId = null;
+    var region = 'UY';
 
-    // ── Funciones llamadas desde App Inventor ──
-
-    // Iniciar recorrido
-    function iniciarRecorrido(tipo) {
+    function iniciarRecorrido(tipo, reg) {
       tipoTransporte = tipo;
+      region = reg;
       grabando = true;
       puntos = [];
       totalKm = 0;
@@ -78,14 +74,12 @@
           var lat = pos.coords.latitude;
           var lon = pos.coords.longitude;
 
-          // Mover marcador y centrar mapa
           marcador.setLatLng([lat, lon]);
           map.setView([lat, lon], map.getZoom());
 
           if (!grabando) return;
 
           if (latAnterior !== 0) {
-            // Calcular distancia
             var difLat = (lat - latAnterior) * 111.32;
             var difLon = (lon - lonAnterior) * 111.32 * Math.cos(lat * 0.01745);
             var distancia = Math.sqrt(difLat * difLat + difLon * difLon);
@@ -93,25 +87,36 @@
             if (distancia > 0.002) {
               totalKm += distancia;
 
-              if (tipoTransporte === 'A pie') {
-                totalAhorro = totalKm * 7;
-              } else if (tipoTransporte === 'Bicicleta') {
-                totalAhorro = totalKm * 6.3;
+              var co2;
+              var distMostrar;
+
+              if (region === 'UY') {
+                if (tipoTransporte === 'A pie') {
+                  totalAhorro = totalKm * 7;
+                } else {
+                  totalAhorro = totalKm * 6.3;
+                }
+                co2 = Math.round(totalKm * 0.25 * 1000) / 1000;
+                distMostrar = Math.round(totalKm * 100) / 100;
+              } else {
+                var distMi = totalKm * 0.621371;
+                if (tipoTransporte === 'A pie') {
+                  totalAhorro = distMi * 0.15;
+                } else {
+                  totalAhorro = distMi * 0.14;
+                }
+                co2 = Math.round(distMi * 0.4 * 1000) / 1000;
+                distMostrar = Math.round(distMi * 100) / 100;
               }
 
-              // Dibujar línea
               puntos.push([lat, lon]);
               linea.setLatLngs(puntos);
 
-              // Formatear valores
-              var kmMostrar = Math.round(totalKm * 100) / 100;
               var ahorroMostrar = Math.round(totalAhorro * 100) / 100;
 
-              // Enviar datos a App Inventor
               try {
-                var co2 = Math.round(totalKm * 0.25 * 1000) / 1000;
                 AppInventor.setWebViewString(
-                  kmMostrar + '|' + ahorroMostrar + '|' + co2
+                  distMostrar + '|' + ahorroMostrar + '|' + co2
                 );
               } catch (e) { }
             }
@@ -131,7 +136,6 @@
       );
     }
 
-    // Detener recorrido
     function detenerRecorrido() {
       grabando = false;
       if (watchId !== null) {
@@ -146,7 +150,6 @@
       return kmFinal + '|' + ahorroFinal;
     }
 
-    // Limpiar mapa
     function limpiarMapa() {
       puntos = [];
       linea.setLatLngs([]);
