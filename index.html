@@ -55,78 +55,8 @@
     var totalKm = 0;
     var totalAhorro = 0;
     var tipoTransporte = '';
-    var intervaloId = null;
+    var watchId = null;
     var region = 'UY';
-
-    function procesarPosicion(pos) {
-      var lat = pos.coords.latitude;
-      var lon = pos.coords.longitude;
-
-      marcador.setLatLng([lat, lon]);
-      map.setView([lat, lon], map.getZoom());
-
-      if (!grabando) return;
-
-      if (latAnterior !== 0) {
-        var difLat = (lat - latAnterior) * 111.32;
-        var difLon = (lon - lonAnterior) * 111.32 * Math.cos(lat * 0.01745);
-        var distancia = Math.sqrt(difLat * difLat + difLon * difLon);
-
-        if (distancia > 0.002) {
-          totalKm += distancia;
-
-          var co2;
-          var distMostrar;
-
-          if (region === 'UY') {
-            if (tipoTransporte === 'A pie') {
-              totalAhorro = totalKm * 7;
-            } else {
-              totalAhorro = totalKm * 6.3;
-            }
-            co2 = Math.round(totalKm * 0.25 * 1000) / 1000;
-            distMostrar = Math.round(totalKm * 100) / 100;
-          } else {
-            var distMi = totalKm * 0.621371;
-            if (tipoTransporte === 'A pie') {
-              totalAhorro = distMi * 0.15;
-            } else {
-              totalAhorro = distMi * 0.14;
-            }
-            co2 = Math.round(distMi * 0.4 * 1000) / 1000;
-            distMostrar = Math.round(distMi * 100) / 100;
-          }
-
-          puntos.push([lat, lon]);
-          linea.setLatLngs(puntos);
-
-          var ahorroMostrar = Math.round(totalAhorro * 100) / 100;
-
-          try {
-            AppInventor.setWebViewString(
-              distMostrar + '|' + ahorroMostrar + '|' + co2
-            );
-          } catch (e) { }
-        }
-      }
-
-      latAnterior = lat;
-      lonAnterior = lon;
-    }
-
-    function pedirPosicion() {
-      navigator.geolocation.getCurrentPosition(
-        procesarPosicion,
-        function (err) {
-          console.log('GPS error: ' + err.message);
-        },
-        {
-          enableHighAccuracy: true,
-          timeout: 10000,
-          maximumAge: 3000
-        }
-      );
-    }
 
     function iniciarRecorrido(tipo, reg) {
       tipoTransporte = tipo;
@@ -139,16 +69,78 @@
       lonAnterior = 0;
       linea.setLatLngs([]);
 
-      // Pedir posición inmediatamente y luego cada 3 segundos
-      pedirPosicion();
-      intervaloId = setInterval(pedirPosicion, 3000);
+      watchId = navigator.geolocation.watchPosition(
+        function (pos) {
+          var lat = pos.coords.latitude;
+          var lon = pos.coords.longitude;
+
+          marcador.setLatLng([lat, lon]);
+          map.setView([lat, lon], map.getZoom());
+
+          if (!grabando) return;
+
+          if (latAnterior !== 0) {
+            var difLat = (lat - latAnterior) * 111.32;
+            var difLon = (lon - lonAnterior) * 111.32 * Math.cos(lat * 0.01745);
+            var distancia = Math.sqrt(difLat * difLat + difLon * difLon);
+
+            if (distancia > 0.002) {
+              totalKm += distancia;
+
+              var co2;
+              var distMostrar;
+
+              if (region === 'UY') {
+                if (tipoTransporte === 'A pie') {
+                  totalAhorro = totalKm * 7;
+                } else {
+                  totalAhorro = totalKm * 6.3;
+                }
+                co2 = Math.round(totalKm * 0.25 * 1000) / 1000;
+                distMostrar = Math.round(totalKm * 100) / 100;
+              } else {
+                var distMi = totalKm * 0.621371;
+                if (tipoTransporte === 'A pie') {
+                  totalAhorro = distMi * 0.15;
+                } else {
+                  totalAhorro = distMi * 0.14;
+                }
+                co2 = Math.round(distMi * 0.4 * 1000) / 1000;
+                distMostrar = Math.round(distMi * 100) / 100;
+              }
+
+              puntos.push([lat, lon]);
+              linea.setLatLngs(puntos);
+
+              var ahorroMostrar = Math.round(totalAhorro * 100) / 100;
+
+              try {
+                AppInventor.setWebViewString(
+                  distMostrar + '|' + ahorroMostrar + '|' + co2
+                );
+              } catch (e) { }
+            }
+          }
+
+          latAnterior = lat;
+          lonAnterior = lon;
+        },
+        function (err) {
+          console.log('GPS error: ' + err.message);
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 30000,
+          maximumAge: 3000
+        }
+      );
     }
 
     function detenerRecorrido() {
       grabando = false;
-      if (intervaloId !== null) {
-        clearInterval(intervaloId);
-        intervaloId = null;
+      if (watchId !== null) {
+        navigator.geolocation.clearWatch(watchId);
+        watchId = null;
       }
       var kmFinal = Math.round(totalKm * 100) / 100;
       var ahorroFinal = Math.round(totalAhorro * 100) / 100;
