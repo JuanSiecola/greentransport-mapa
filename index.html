@@ -8,23 +8,9 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <style>
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
-
-    html,
-    body {
-      width: 100%;
-      height: 100%;
-      overflow: hidden;
-    }
-
-    #map {
-      width: 100%;
-      height: 100vh;
-    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; overflow: hidden; }
+    #map { width: 100%; height: 100vh; }
   </style>
 </head>
 
@@ -34,13 +20,13 @@
     var map = L.map('map', {
       zoomControl: true,
       attributionControl: false
-    }).setView([-32.0653, -57.3272], 17);
+    }).setView([-32.3214, -58.0756], 17);
 
     L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
       maxZoom: 19
     }).addTo(map);
 
-    var marcador = L.marker([-32.0653, -57.3272]).addTo(map);
+    var marcador = L.marker([-32.3214, -58.0756]).addTo(map);
 
     var puntos = [];
     var linea = L.polyline([], {
@@ -55,7 +41,6 @@
     var totalKm = 0;
     var totalAhorro = 0;
     var tipoTransporte = '';
-    var watchId = null;
     var region = 'UY';
 
     function iniciarRecorrido(tipo, reg) {
@@ -68,85 +53,70 @@
       latAnterior = 0;
       lonAnterior = 0;
       linea.setLatLngs([]);
+    }
 
-      watchId = navigator.geolocation.watchPosition(
-        function (pos) {
-          var lat = pos.coords.latitude;
-          var lon = pos.coords.longitude;
+    // Esta funcion es llamada desde App Inventor via RunJavaScript
+    // cada vez que el LocationSensor detecta una nueva posicion
+    function actualizarPosicion(lat, lon) {
+      marcador.setLatLng([lat, lon]);
+      map.setView([lat, lon], map.getZoom());
 
-          marcador.setLatLng([lat, lon]);
-          map.setView([lat, lon], map.getZoom());
+      if (!grabando) return;
 
-          if (!grabando) return;
+      if (latAnterior !== 0) {
+        var difLat = (lat - latAnterior) * 111.32;
+        var difLon = (lon - lonAnterior) * 111.32 * Math.cos(lat * 0.01745);
+        var distancia = Math.sqrt(difLat * difLat + difLon * difLon);
 
-          if (latAnterior !== 0) {
-            var difLat = (lat - latAnterior) * 111.32;
-            var difLon = (lon - lonAnterior) * 111.32 * Math.cos(lat * 0.01745);
-            var distancia = Math.sqrt(difLat * difLat + difLon * difLon);
+        if (distancia > 0.002) {
+          totalKm += distancia;
 
-            if (distancia > 0.002) {
-              totalKm += distancia;
+          var co2;
+          var distMostrar;
 
-              var co2;
-              var distMostrar;
-
-              if (region === 'UY') {
-                if (tipoTransporte === 'A pie') {
-                  totalAhorro = totalKm * 7;
-                } else {
-                  totalAhorro = totalKm * 6.3;
-                }
-                co2 = Math.round(totalKm * 0.25 * 1000) / 1000;
-                distMostrar = Math.round(totalKm * 100) / 100;
-              } else {
-                var distMi = totalKm * 0.621371;
-                if (tipoTransporte === 'A pie') {
-                  totalAhorro = distMi * 0.15;
-                } else {
-                  totalAhorro = distMi * 0.14;
-                }
-                co2 = Math.round(distMi * 0.4 * 1000) / 1000;
-                distMostrar = Math.round(distMi * 100) / 100;
-              }
-
-              puntos.push([lat, lon]);
-              linea.setLatLngs(puntos);
-
-              var ahorroMostrar = Math.round(totalAhorro * 100) / 100;
-
-              try {
-                AppInventor.setWebViewString(
-                  distMostrar + '|' + ahorroMostrar + '|' + co2
-                );
-              } catch (e) { }
+          if (region === 'UY') {
+            if (tipoTransporte === 'A pie') {
+              totalAhorro = totalKm * 7;
+            } else {
+              totalAhorro = totalKm * 6.3;
             }
+            co2 = Math.round(totalKm * 0.25 * 1000) / 1000;
+            distMostrar = Math.round(totalKm * 100) / 100;
+          } else {
+            var distMi = totalKm * 0.621371;
+            if (tipoTransporte === 'A pie') {
+              totalAhorro = distMi * 0.15;
+            } else {
+              totalAhorro = distMi * 0.14;
+            }
+            co2 = Math.round(distMi * 0.4 * 1000) / 1000;
+            distMostrar = Math.round(distMi * 100) / 100;
           }
 
-          latAnterior = lat;
-          lonAnterior = lon;
-        },
-        function (err) {
-          console.log('GPS error: ' + err.message);
-        },
-        {
-          enableHighAccuracy: true,
-          timeout: 5000,
-          maximumAge: 0
+          puntos.push([lat, lon]);
+          linea.setLatLngs(puntos);
+
+          var ahorroMostrar = Math.round(totalAhorro * 100) / 100;
+
+          try {
+            AppInventor.setWebViewString(
+              distMostrar + '|' + ahorroMostrar + '|' + co2
+            );
+          } catch (e) {}
         }
-      );
+      }
+
+      latAnterior = lat;
+      lonAnterior = lon;
     }
 
     function detenerRecorrido() {
       grabando = false;
-      if (watchId !== null) {
-        navigator.geolocation.clearWatch(watchId);
-        watchId = null;
-      }
       var kmFinal = Math.round(totalKm * 100) / 100;
       var ahorroFinal = Math.round(totalAhorro * 100) / 100;
       try {
         AppInventor.setWebViewString('FIN|' + kmFinal + '|' + ahorroFinal + '|' + tipoTransporte);
-      } catch (e) { }
+      } catch (e) {}
       return kmFinal + '|' + ahorroFinal;
     }
 
@@ -154,91 +124,6 @@
       puntos = [];
       linea.setLatLngs([]);
     }
-
-    var simIntervalId = null;
-
-function simularRecorrido(tipo, reg) {
-  tipoTransporte = tipo;
-  region = reg;
-  grabando = true;
-  puntos = [];
-  totalKm = 0;
-  totalAhorro = 0;
-  latAnterior = 0;
-  lonAnterior = 0;
-  linea.setLatLngs([]);
-
-  var rutaSim = [
-    [-32.0618, -57.3695],
-    [-32.0619, -57.3693],
-    [-32.0620, -57.3691],
-    [-32.0621, -57.3689],
-    [-32.0622, -57.3687],
-    [-32.0623, -57.3685],
-    [-32.0624, -57.3683],
-    [-32.0625, -57.3681],
-    [-32.0626, -57.3679],
-    [-32.0627, -57.3677],
-    [-32.0628, -57.3675],
-    [-32.0629, -57.3673],
-    [-32.0630, -57.3671],
-    [-32.0631, -57.3669],
-    [-32.0632, -57.3667],
-    [-32.0633, -57.3665],
-    [-32.0634, -57.3663],
-    [-32.0635, -57.3661],
-    [-32.0636, -57.3659],
-    [-32.0637, -57.3657]
-  ];
-
-  var i = 0;
-  map.setView(rutaSim[0], 17);
-  marcador.setLatLng(rutaSim[0]);
-
-  simIntervalId = setInterval(function() {
-    if (i >= rutaSim.length) {
-      clearInterval(simIntervalId);
-      return;
-    }
-
-    var lat = rutaSim[i][0];
-    var lon = rutaSim[i][1];
-    marcador.setLatLng([lat, lon]);
-    map.setView([lat, lon], map.getZoom());
-
-    if (latAnterior !== 0) {
-      var difLat = (lat - latAnterior) * 111.32;
-      var difLon = (lon - lonAnterior) * 111.32 * Math.cos(lat * 0.01745);
-      var distancia = Math.sqrt(difLat * difLat + difLon * difLon);
-      totalKm += distancia;
-
-      var co2, distMostrar, ahorroMostrar;
-      if (region === 'UY') {
-        totalAhorro = totalKm * (tipo === 'A pie' ? 7 : 6.3);
-        co2 = Math.round(totalKm * 0.25 * 1000) / 1000;
-        distMostrar = Math.round(totalKm * 100) / 100;
-      } else {
-        var distMi = totalKm * 0.621371;
-        totalAhorro = distMi * (tipo === 'A pie' ? 0.15 : 0.14);
-        co2 = Math.round(distMi * 0.4 * 1000) / 1000;
-        distMostrar = Math.round(distMi * 100) / 100;
-      }
-
-      puntos.push([lat, lon]);
-      linea.setLatLngs(puntos);
-      ahorroMostrar = Math.round(totalAhorro * 100) / 100;
-
-      try {
-        AppInventor.setWebViewString(distMostrar + '|' + ahorroMostrar + '|' + co2);
-      } catch(e) {}
-    }
-
-    latAnterior = lat;
-    lonAnterior = lon;
-    i++;
-
-  }, 5000); // mueve el punto cada 1.5 segundos
-}
   </script>
 </body>
 
