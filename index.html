@@ -75,7 +75,7 @@
           var distMostrar;
 
           if (region === 'UY') {
-            if (tipoTransporte === 'A pie') {
+            if (tipoTransporte === 'Walking') {
               totalAhorro = totalKm * 7;
             } else {
               totalAhorro = totalKm * 6.3;
@@ -84,7 +84,7 @@
             distMostrar = Math.round(totalKm * 100) / 100;
           } else {
             var distMi = totalKm * 0.621371;
-            if (tipoTransporte === 'A pie') {
+            if (tipoTransporte === 'Walking') {
               totalAhorro = distMi * 0.15;
             } else {
               totalAhorro = distMi * 0.14;
